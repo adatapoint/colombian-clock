@@ -151,8 +151,6 @@ class MainActivity : AppCompatActivity() {
             else -> throw Exception("No está mapeada esta opción $time")
         }
     }
-
-    data class Time(val hour: Int, val minutes: Int)
     private fun Time.toString() = "$hour:$minutes"
 }
 
