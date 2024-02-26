@@ -1,156 +1,151 @@
 package com.vince.colombianclock
 
+import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import kotlin.random.Random
+import com.vince.colombianclock.data.getAllTimes
+import com.vince.colombianclock.data.getWords
+import com.vince.colombianclock.databinding.ActivityMainBinding
+import com.vince.colombianclock.utils.getStructure
+import com.vince.colombianclock.utils.toHourText
+import com.vince.colombianclock.utils.toMinuteText
+import com.vince.colombianclock.utils.toMinutesQueFaltanText
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityMainBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val randomTimes = generateRandomTimes(300)
-        randomTimes.forEach { hour ->
-            getTranslatedTime(hour)
+        val times = getAllTimes()
+        // val times = generateRandomTimes(300)
+
+        Log.d("", "Inicio")
+        times.forEach {
+            Log.d("", "${getTranslatedTime(it)}")
         }
+        Log.d("", "Final")
+
+        var currentIndex = 0
+
+        fun iterateWithDelay() {
+            if (currentIndex < times.size) {
+                val currentTime = times[currentIndex]
+                val translatedTime = getTranslatedTime(currentTime)
+                binding.tvTime.text = String.format(
+                    getString(R.string.time_format),
+                    String.format("%02d", currentTime.hour),
+                    String.format("%02d", currentTime.minutes)
+                )
+                binding.tvTimeText.text = translatedTime
+                showTranslatedTimeInScreen(translatedTime)
+
+                // Incrementar el índice para la siguiente iteración
+                currentIndex++
+
+                // Esperar x segundos antes de la siguiente iteración
+                Handler(Looper.getMainLooper()).postDelayed({
+                    iterateWithDelay()
+                }, 10000)
+            }
+        }
+
+        iterateWithDelay()
     }
 
-    private fun getTranslatedTime(time: Time) {
-        val translatedTime = getBeginning(time) +
-                " ${getHour(time)}" +
-                " ${getMinutes(time)}" +
-                " ${getEnding(time)}"
-        Log.d("TAG", "$time -> $translatedTime")
+    private fun restartUI() {
+        binding.tvText.text = getWords().joinToString(separator = " ")
     }
 
-    private fun getEnding(time: Time): String = when {
-        (time.hour == 0 || time.hour == 12) && time.minutes == 0 -> ""
-        time.hour < 12 -> "de la mañana"
-        time.hour > 12 -> "de la noche"
-        else -> throw Exception("No está mapeada esta opción $time")
+    private fun showTranslatedTimeInScreen(translatedTime: String) {
+        restartUI()
+        val wordsToShow = translatedTime.split(" ")
+
+        val text = binding.tvText.text.toString()
+        val spannableString = SpannableString(text)
+        for (word in wordsToShow) {
+            val wordPattern = "\\b$word\\b".toRegex()
+            val matches = wordPattern.findAll(text)
+
+            for (matchResult in matches) {
+                val startWord = matchResult.range.first
+                val endWord = matchResult.range.last + 1
+                spannableString.setSpan(
+                    ForegroundColorSpan(Color.RED),
+                    startWord,
+                    endWord,
+                    Spannable.SPAN_INCLUSIVE_INCLUSIVE
+                )
+            }
+        }
+
+        binding.tvText.text = spannableString
     }
 
-    private fun getHour(time: Time): String {
-        val adjustedMinute = when (time.minutes) {
-            in 35..40 -> {
-                if (time.minutes - 35 <= 40 - time.minutes) {
-                    35
-                } else {
-                    40
+    private fun getTranslatedTime(time: Time): String {
+        val structure = getStructure(time)
+        val translatedTime = getTimeTextFromStructure(time, structure)
+
+        //Log.d("TAG", "${time.hour}:${time.minutes} -> ${translatedTime.toText()}")
+        return translatedTime.toText()
+    }
+
+    private fun getTimeTextFromStructure(time: Time, structure: List<String>): List<String> {
+        val timeText = mutableListOf<String>()
+        structure.forEach { part ->
+            timeText.add(
+                when (part) {
+                    "articulo" -> if (time.hour == 1 || time.hour == 13) "la" else "las"
+                    "siguiente_hora" -> getNextHourText(time.hour)
+                    "es_son" -> if (time.hour == 1 || time.hour == 13) "es" else "son"
+                    "hora" -> time.hour.toHourText()
+                    "en_punto" -> "en_punto"
+                    "y" -> "y"
+                    "minutos" -> time.minutes.toMinuteText()
+                    "media_medio" -> if (time.hour == 12) "medio" else "media"
+                    "dia_noche" -> "de la ${getMananaTardeOrNoche(time.hour)}"
+                    "faltan" -> if (time.minutes == 45) "falta un" else "faltan"
+                    "para" -> "para"
+                    "es_media_noche_o_medio_dia" -> if (time.hour == 12) "es medio día" else "es media noche"
+                    "minutos_para_siguiente_hora" -> time.minutes.toMinutesQueFaltanText()
+                    else -> throw Exception("No está mapeada esta opción $part")
                 }
-            }
-
-            in 0..5 -> {
-                if (time.minutes <= 5 - time.minutes) {
-                    0
-                } else {
-                    5
-                }
-            }
-
-            else -> time.minutes
+            )
         }
-        return when {
-            adjustedMinute >= 40 -> ""
-            time.hour == 0 && adjustedMinute == 0 -> "media noche"
-            time.hour == 12 -> "medio día"
-            time.hour in 0..11 -> when (time.hour) {
-                0 -> "doce"
-                1 -> "una"
-                2 -> "dos"
-                3 -> "tres"
-                4 -> "cuatro"
-                5 -> "cinco"
-                6 -> "seis"
-                7 -> "siete"
-                8 -> "ocho"
-                9 -> "nueve"
-                10 -> "diez"
-                11 -> "once"
-                else -> throw Exception("No está mapeada esta opción minuto: $adjustedMinute")
-            }
-
-            else -> throw Exception("No está mapeada esta opción $time")
-        }
+        return timeText
     }
 
-    private fun getRoundedMinutes(minute: Int): Int {
-        val remainder = minute % 5
-        val adjustedMinute = if (remainder < 3) {
-            minute - remainder
-        } else {
-            minute + (5 - remainder)
+    private fun getNextHourText(hour: Int): String {
+        var nextHour = hour + 1
+        if (nextHour == 24) {
+            nextHour = 0
         }
-        return if (adjustedMinute > 58) {
-            0
-        } else {
-            adjustedMinute
-        }
+        return nextHour.toHourText()
     }
 
-    private fun getMinutes(time: Time): String =
-        if ((time.hour == 0 || time.hour == 12) && time.minutes == 0) {
-            ""
-        } else {
-            when (getRoundedMinutes(time.minutes)) {
-                0 -> "en punto"
-                5 -> "y cinco"
-                10 -> "y diez"
-                15 -> "y cuarto"
-                20 -> "y veinte"
-                25 -> "y veinticinco"
-                30 -> "y media"
-                35 -> "y treinta y cinco"
-                40 -> "veinte para"
-                45 -> "cuarto para"
-                50 -> "diez para"
-                55 -> "cinco para"
-                else -> throw Exception("No está mapeada esta opción $time")
-            }
+    private fun getMananaTardeOrNoche(hour: Int): String =
+        when (hour) {
+            in 0..11 -> "mañana"
+            in 12..18 -> "tarde"
+            else -> "noche"
         }
 
-    private fun generateRandomTimes(count: Int): List<Time> {
-        val randomTimes = mutableListOf<Time>()
-        repeat(count) {
-            val hour = Random.nextInt(0, 24)
-            val minute = Random.nextInt(0, 60)
-            randomTimes.add(Time(hour, minute))
+    private fun List<String>.toText(): String {
+        var text = ""
+        forEachIndexed { index, part ->
+            text += part
+            if (index != size - 1) {
+                text = "$text "
+            }
         }
-        return randomTimes
+        return text
     }
-
-    private fun getBeginning(time: Time): String {
-        val adjustedMinute = when (time.minutes) {
-            in 35..40 -> {
-                if (time.minutes - 35 <= 40 - time.minutes) {
-                    35
-                } else {
-                    40
-                }
-            }
-
-            in 0..5 -> {
-                if (time.minutes <= 5 - time.minutes) {
-                    0
-                } else {
-                    5
-                }
-            }
-
-            else -> time.minutes
-        }
-        return when {
-            adjustedMinute == 45 -> "falta"
-            adjustedMinute >= 40 -> "faltan"
-            time.hour == 0 && adjustedMinute == 0 -> "es"
-            time.hour == 0 -> "son las"
-            time.hour == 1 -> "es la"
-            time.hour == 12 -> "es"
-            time.hour >= 2 -> "son las"
-            else -> throw Exception("No está mapeada esta opción $time")
-        }
-    }
-    private fun Time.toString() = "$hour:$minutes"
 }
-

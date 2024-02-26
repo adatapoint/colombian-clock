@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Colombian Clock</string>
+    <string name="time_format">%s:%s</string>
 </resources>

@@ -7,6 +7,10 @@ android {
     namespace = "com.vince.colombianclock"
     compileSdk = 34
 
+    buildFeatures {
+        viewBinding = true
+    }
+
     defaultConfig {
         applicationId = "com.vince.colombianclock"
         minSdk = 28
